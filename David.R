@@ -1,4 +1,5 @@
 library(tidyverse)
+library(mice)
 
 data_yu <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/youth-not-in-education-employment-training.csv")
 data_lp <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/Labor_Participation.csv")
@@ -55,7 +56,7 @@ new_columns <- 1960:2024
 data_fm <- data_fm %>% rename_with(~as.character(new_columns), .cols= all_of(old_columns))
 
 data_fm <- data_fm %>%
-  gather(key="Year", value="F/M Labour Ratio", names(select(data_fm, (as.character(1960:2024)))))
+  gather(key="Year", value="Female_Male_Labour_Ratio", names(select(data_fm, (as.character(1960:2024)))))
 data_fm <- rename(data_fm, 'Code' = 'World Development Indicators') 
 data_fm <- data_fm %>% filter(`Code` %in% as.vector(data_cty$Code)) %>% select(-c("...3", "Data Source"))
 data_fm <- select(data_fm, -"...4")
@@ -71,7 +72,7 @@ new_columns <- 1960:2024
 data_pdy <- data_pdy %>% rename_with(~as.character(new_columns), .cols= all_of(old_columns))
 
 data_pdy <- data_pdy %>%
-  gather(key="Year", value="GDP Per Worker", names(select(data_pdy, (as.character(1960:2024)))))
+  gather(key="Year", value="GDP_Per_Worker", names(select(data_pdy, (as.character(1960:2024)))))
 data_pdy <- rename(data_pdy, 'Code' = 'World Development Indicators') 
 data_pdy <- data_pdy %>% filter(`Code` %in% as.vector(data_cty$Code)) %>% select(-c("...3", "...4", "Data Source"))
 data_pdy$Year <- as.numeric(data_pdy$Year)
@@ -87,7 +88,7 @@ new_columns <- 1960:2024
 data_emp <- data_emp %>% rename_with(~as.character(new_columns), .cols= all_of(old_columns))
 
 data_emp <- data_emp %>%
-  gather(key="Year", value="Unemployment (%)", names(select(data_emp, (as.character(1960:2024)))))
+  gather(key="Year", value="Unemployment_As_A_Percentage", names(select(data_emp, (as.character(1960:2024)))))
 data_emp <- rename(data_emp, 'Code' = 'World Development Indicators') 
 data_emp <- data_emp %>% filter(`Code` %in% as.vector(data_cty$Code)) %>% select(-c("...3", "...4", "Data Source"))
 data_emp$Year <- as.numeric(data_emp$Year)
@@ -106,6 +107,9 @@ main[, c(-1:-3)] <- main[, c(-1:-3)] %>% apply(2, standardize)
 
 
 #Handling the missing data
+
+main <- mice(main, m = 5, maxit = 10, method = 'pmm', seed = 123)
+
 
 
 
