@@ -1,5 +1,13 @@
+install.packages("FactoMineR")
+install.packages("corrr")
+install.packages("ggcorrplot")
+install.packages("factoextra")
 library(tidyverse)
 library(mice)
+library(FactoMineR)
+library(ggcorrplot)
+library(factoextra)
+library(corrr)
 
 data_yu <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/youth-not-in-education-employment-training.csv")
 data_lp <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/Labor_Participation.csv")
@@ -96,6 +104,11 @@ data_emp$Year <- as.numeric(data_emp$Year)
 main <- inner_join(main, data_emp, by = c("Year", "Code")) %>% filter(`Year` > 2009)
 
 
+#Handling the missing data
+
+main <- mice(main, m = 5, maxit = 10, method = 'cart', seed = 123)
+main <- complete(main, action = 1)
+
 #standardising features
 
 standardize <- function(x) {
@@ -105,11 +118,28 @@ standardize <- function(x) {
 
 main[, c(-1:-3)] <- main[, c(-1:-3)] %>% apply(2, standardize)
 
+#performing PCA
 
-#Handling the missing data
+pca <- princomp(main[,-c(1:3)])
+summary(pca)
 
-main <- mice(main, m = 5, maxit = 10, method = 'pmm', seed = 123)
+#scree plot
+scree_plot <- fviz_eig(pca, addLavels = TRUE)
 
+#biplot of the attributes
+fviz_pca_var(pca, col.var = "black")
+
+#contribution of each variable
+fviz_cos2(pca, choice = "var", axes = 1:2)
+
+
+#not exactly sure what this does yet
+pca_coordinates <- pca$scores[,1:2]
+pca_coordinates <- data.frame(
+  Country = main$Entity,
+  PC1 = pca_coordinates[,1],
+  PC2 = pca_coordinates[,2]
+)
 
 
 
