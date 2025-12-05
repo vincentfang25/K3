@@ -2,12 +2,15 @@ install.packages("FactoMineR")
 install.packages("corrr")
 install.packages("ggcorrplot")
 install.packages("factoextra")
+install.packages("plotly")
 library(tidyverse)
 library(mice)
 library(FactoMineR)
 library(ggcorrplot)
 library(factoextra)
 library(corrr)
+library(plotly)
+library(ggplot2)
 
 data_yu <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/youth-not-in-education-employment-training.csv")
 data_lp <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/Labor_Participation.csv")
@@ -16,8 +19,11 @@ data_fm <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_I
 data_cty <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/continents-according-to-our-world-in-data.csv")
 data_pdy <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/GDP_Per_Worker.csv")
 data_emp <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/Unemployment_Percentage.csv")
+data_gdp <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/gdp-per-capita-worldbank.csv")
+data_cont <- read_csv("/Users/ade/atunwa/EFDS 1/Introduction to Data Science/SDG_Index/continents-according-to-our-world-in-data.csv")
 
-# Youth Unemployment
+
+# Cleaning Youth Unemployment File
 data_yu <- arrange(data_yu, Year, Code)
 data_yu <- data_yu[, c(3,1,2,4)]
 
@@ -101,12 +107,22 @@ data_emp <- rename(data_emp, 'Code' = 'World Development Indicators')
 data_emp <- data_emp %>% filter(`Code` %in% as.vector(data_cty$Code)) %>% select(-c("...3", "...4", "Data Source"))
 data_emp$Year <- as.numeric(data_emp$Year)
 
-main <- inner_join(main, data_emp, by = c("Year", "Code")) %>% filter(`Year` > 2009)
+main <- inner_join(main, data_emp, by = c("Year", "Code"))
+
+
+#Cleaning GDP Per Capita File
+
+data_gdp <- rename(data_gdp, GDP_Per_Capita = `GDP per capita, PPP (constant 2017 international $)`)
+
+main <- left_join(main, data_gdp[, c(2,4)])
+
+#Classifying the countries by income 
+
 
 
 #Handling the missing data
 
-main <- mice(main, m = 5, maxit = 10, method = 'cart', seed = 123)
+main <- mice(main, m = 3, maxit = 5, method = 'cart', seed = 123)
 main <- complete(main, action = 1)
 
 #standardising features
@@ -124,7 +140,7 @@ pca <- princomp(main[,-c(1:3)])
 summary(pca)
 
 #scree plot
-scree_plot <- fviz_eig(pca, addLavels = TRUE)
+scree_plot <- fviz_eig(pca, addLabels = TRUE)
 
 #biplot of the attributes
 fviz_pca_var(pca, col.var = "black")
@@ -136,13 +152,57 @@ fviz_cos2(pca, choice = "var", axes = 1:2)
 #not exactly sure what this does yet
 pca_coordinates <- pca$scores[,1:2]
 pca_coordinates <- data.frame(
+  Year = main$Year,
   Country = main$Entity,
   PC1 = pca_coordinates[,1],
-  PC2 = pca_coordinates[,2]
+  PC2 = pca_coordinates[,2],
+  PC3 = pca$scores[,3]
 )
 
+#K-means clustering
+set.seed(123)
+km <- kmeans(pca_coordinates[, c("PC1", "PC2")], centers = 3, nstart = 25)
+pca_coordinates$cluster <- as.factor(km$cluster)
+
+#Visualising clusters
+fviz_cluster(
+  list(data = pca_coordinates[, c("PC1", "PC2")], cluster = km$cluster),
+  geom = "point",
+  ellipse = TRUE,
+  stand = FALSE
+) + theme_minimal()
+
+#Visualising in 3D!
+plot_ly(
+  x = ~pca$scores[,1],
+  y = ~pca$scores[,2],
+  z = ~pca$scores[,3],
+  color = ~pca_coordinates$cluster,
+  type = "scatter3d",
+  mode = "markers"
+)
+
+pca_coordinates <- left_join(pca_coordinates, data_cont[,c(1,4)], by = c("Country" = "Entity"))
+ggplot(pca_coordinates, mapping = aes(x = PC1, y = PC2, group = Country, color = Continent)) +
+  geom_path(alpha = 0.7) +
+  geom_point(size = 1) +
+  theme_minimal() +
+  facet_wrap(~ Continent) +
+  labs(title = "Country trajectories in PCA space over time")
 
 
+plot_ly(pca_coordinates,
+        x = ~PC1, y = ~PC2, z = ~PC3,
+        color = ~Continent,
+        type = 'scatter3d',
+        mode = 'lines+markers',
+        split = ~Country)
+
+centroids <- pca_coordinates %>%
+  group_by(Continent, Year) %>%
+  summarise(PC1 = mean(PC1), 
+            PC2 = mean(PC2),
+            PC3 = mean(PC3))
 
 
 
