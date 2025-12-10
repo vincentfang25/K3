@@ -1,3 +1,12 @@
+---
+title: "David Atunwa IDS Assignment"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document: default
+---
+
+```{r}
 library(tidyverse)
 library(dplyr)
 library(purrr)
@@ -50,7 +59,7 @@ df_main <- df_gdp %>%
   summarise(`Geometric Growth Average` = exp(mean(log(Growth_Factor), na.rm = TRUE)),
             `Standard Deviation` = sd(Annual_Growth_Rate_PC, na.rm = TRUE),
             `Coefficient of Variation` = sd(Annual_Growth_Rate_PC, na.rm = TRUE) / abs(mean(Annual_Growth_Rate_PC, na.rm = TRUE))) 
-df_main <- left_join(df_main, data_cont[,-3], by = "Code")
+df_main <- left_join(df_main, df_cont[,-3], by = "Code")
 df_main <- left_join(df_main, df_class[, c(2,4)], by = "Code")
 df_main <- left_join(df_main, trend_results, by = "Code")
 
@@ -239,5 +248,5 @@ ggplot(df_cross, aes(Year, sd_growth, color = Continent)) +
   labs(title = "Cross-Sectional Volatility of GDP Per Capita Growth in LEDCs",
        y = "SD Across Countries (%)") +
   theme_minimal()
-
+```
 
