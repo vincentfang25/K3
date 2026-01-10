@@ -1,0 +1,137 @@
+# ======================================================
+#   FULL ANALYSIS SCRIPT FOR SDG 8.1 GDP PER CAPITA GROWTH
+#   Using your datasets from ~/Downloads/data sets/
+# ======================================================
+
+library(tidyverse)
+library(broom)
+
+# ------------------------------------------------------
+# 1. LOAD DATA
+# ------------------------------------------------------
+
+df_cont <- read_csv("~/Downloads/data sets/continents-according-to-our-world-in-data.csv")
+df_gdp  <- read_csv("~/Downloads/data sets/gdp-per-capita-worldbank.csv")
+df_class <- read_csv("~/Downloads/data sets/youth-not-in-education-employment-training.csv")
+
+# ------------------------------------------------------
+# 2. CLEAN GDP PER CAPITA DATA
+# ------------------------------------------------------
+
+df_gdp <- df_gdp %>%
+  select(Code, Year,
+         `GDP per capita, PPP (constant 2017 international $)`) %>%
+  rename(GDP_Per_Capita =
+           `GDP per capita, PPP (constant 2017 international $)`) %>%
+  arrange(Code, Year)
+
+# ------------------------------------------------------
+# 3. COMPUTE ANNUAL GDP PER CAPITA GROWTH RATE
+# ------------------------------------------------------
+
+df_gdp <- df_gdp %>%
+  group_by(Code) %>%
+  arrange(Year) %>%
+  mutate(Annual_Growth_Rate_PC =
+           (GDP_Per_Capita - lag(GDP_Per_Capita)) /
+           lag(GDP_Per_Capita) * 100) %>%
+  ungroup()
+
+# ------------------------------------------------------
+# 4. TREND ANALYSIS (LINEAR MODEL PER COUNTRY)
+# ------------------------------------------------------
+
+trend_results <- df_gdp %>%
+  group_by(Code) %>%
+  nest() %>%
+  mutate(model = map(data,
+                     ~ lm(Annual_Growth_Rate_PC ~ Year, data = .x)),
+         results = map(model, tidy)) %>%
+  unnest(results) %>%
+  filter(term == "Year") %>%
+  select(Code, beta = estimate, p_value = p.value)
+
+# ------------------------------------------------------
+# 5. SUMMARY STATISTICS FOR EACH COUNTRY
+# ------------------------------------------------------
+
+df_main <- df_gdp %>%
+  group_by(Code) %>%
+  summarise(
+    Growth_Average = mean(Annual_Growth_Rate_PC, na.rm = TRUE),
+    Standard_Deviation = sd(Annual_Growth_Rate_PC, na.rm = TRUE),
+    Coefficient_of_Variation =
+      sd(Annual_Growth_Rate_PC, na.rm = TRUE) /
+      abs(mean(Annual_Growth_Rate_PC, na.rm = TRUE))
+  )
+
+# ------------------------------------------------------
+# 6. MERGE CONTINENT DATA
+# ------------------------------------------------------
+
+df_main <- left_join(df_main, df_cont, by = "Code")
+
+# ------------------------------------------------------
+# 7. MERGE TREND RESULTS
+# ------------------------------------------------------
+
+df_main <- left_join(df_main, trend_results, by = "Code")
+
+# ------------------------------------------------------
+# 8. COUNTRY-LEVEL SCATTERPLOT
+# ------------------------------------------------------
+
+ggplot(df_main) +
+  geom_point(aes(x = Growth_Average,
+                 y = Standard_Deviation,
+                 color = Continent),
+             size = 3) +
+  labs(
+    title = "GDP Growth Variability by Country",
+    x = "Average GDP Growth Rate (%)",
+    y = "Standard Deviation of Growth Rate",
+    color = "Continent"
+  ) +
+  theme_minimal()
+
+# ------------------------------------------------------
+# 9. CONTINENT SUMMARY FOR UN TARGET (7%)
+# ------------------------------------------------------
+
+continent_summary <- df_main %>%
+  filter(!is.na(Continent)) %>%        # remove missing continent codes
+  group_by(Continent) %>%
+  summarise(
+    Avg_Growth = mean(Growth_Average, na.rm = TRUE),
+    Countries_Meeting_Target = sum(Growth_Average >= 7, na.rm = TRUE),
+    Total_Countries = n(),
+    Percent_Meeting_Target =
+      Countries_Meeting_Target / Total_Countries * 100
+  )
+
+print(continent_summary)
+
+# ------------------------------------------------------
+# 10. PLOT: AVERAGE GDP GROWTH BY CONTINENT
+# ------------------------------------------------------
+
+ggplot(continent_summary,
+       aes(x = Continent, y = Avg_Growth, fill = Continent)) +
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = 7, linetype = "dashed", color = "red") +
+  labs(title = "Average GDP Per Capita Growth by Continent",
+       y = "Average Growth Rate (%)",
+       x = "Continent") +
+  theme_minimal()
+
+# ------------------------------------------------------
+# 11. PLOT: % OF COUNTRIES ACHIEVING ≥7% GROWTH
+# ------------------------------------------------------
+
+ggplot(continent_summary,
+       aes(x = Continent, y = Percent_Meeting_Target, fill = Continent)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Share of Countries Achieving ≥ 7% GDP Per Capita Growth",
+       y = "% of Countries Meeting UN Target",
+       x = "Continent") +
+  theme_minimal()
